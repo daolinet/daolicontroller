@@ -112,20 +112,12 @@ class DockerHTTPClient(client.Client):
         return self._result(self._get(url))
 
     def group(self, src, dst):
-        member_dict = {}
         res = self._result(self._get(self._url("/api/groups")), True)
         for r in res:
             url = self._url("/api/groups/" + r)
             members = self._result(self._get(url), True)
-            for m in members:
-                if m == src:
-                    member_dict[r] = members
-                    break
-
-        for group, members in member_dict.items():
-            for m in members:
-                if m == dst:
-                    return True
+            if src in members and dst in members:
+                return True
         return False
 
     def firewall(self, node, port):

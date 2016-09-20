@@ -82,11 +82,6 @@ class PacketIPv4(PacketBase):
         if not container:
             raise exception.ContainerNotFound(container=fw['Container'])
 
-        cport = self.port_get(dp, id=container['EndpointID'])
-        gwport = self.port_get(dp, id=container['NetworkId'])
-        if not cport or not gwport:
-            raise exception.DevicePortNotFound()
-
         if pkt_ipv4.proto == inet.IPPROTO_TCP:
             input_key = ofp_set(tcp_dst=fw['ServicePort'])
             output_key = ofp_set(tcp_src=pkt_tp.dst_port)
@@ -97,6 +92,10 @@ class PacketIPv4(PacketBase):
             output_kwargs = {
                     'tcp_src': fw['ServicePort'],
                     'tcp_dst': pkt_tp.src_port,
+            }
+            rinput_kwargs = {
+                    'tcp_src': pkt_tp.src_port,
+                    'tcp_dst': fw['ServicePort'],
             }
         else:
             input_key = ofp_set(udp_dst=fw['ServicePort'])
@@ -109,6 +108,10 @@ class PacketIPv4(PacketBase):
                     'udp_src': fw['ServicePort'],
                     'udp_dst': pkt_tp.src_port,
             }
+            rinput_kwargs = {
+                    'udp_src': pkt_tp.src_port,
+                    'udp_dst': fw['ServicePort'],
+            }
 
         input_match = ofp_parser.OFPMatch(
                 in_port=in_port,
@@ -117,22 +120,6 @@ class PacketIPv4(PacketBase):
                 ipv4_src=pkt_ipv4.src,
                 ipv4_dst=pkt_ipv4.dst,
                 **input_kwargs)
-
-        input_actions = [
-                ofp_set(eth_src=gwport.hw_addr),
-                ofp_set(eth_dst=container['MacAddress']),
-                ofp_set(ipv4_dst=container['IPv4Address'])]
-
-        input_actions.append(input_key)
-        input_actions.append(ofp_out(cport.port_no))
-
-        output_match = ofp_parser.OFPMatch(
-                in_port=cport.port_no,
-                eth_type=ether.ETH_TYPE_IP,
-                ip_proto=pkt_ipv4.proto,
-                ipv4_src=container['IPv4Address'],
-                ipv4_dst=pkt_ipv4.src,
-                **output_kwargs)
 
         output_actions = [
                 ofp_set(eth_src=pkt_ether.dst),
@@ -143,9 +130,93 @@ class PacketIPv4(PacketBase):
         output_actions.append(output_key)
         output_actions.append(ofp_out(in_port))
 
-        self.add_flow(dp, output_match, output_actions)
-        self.add_flow(dp, input_match, input_actions)
-        self.packet_out(msg, dp, input_actions)
+        if gateway['DatapathID'] != container['DataPath']:
+            cgateway = self.gateway_get(container['DataPath'])
+            rdp = self.ryuapp.dps[dpid_lib.str_to_dpid(container['DataPath'])]
+            rofp, rofp_parser, rofp_set, rofp_out = self.ofp_get(rdp)
+
+            gwport = self.port_get(rdp, id=container['NetworkId'])
+            cport = self.port_get(rdp, id=container['EndpointID'])
+            if not cport or not gwport:
+                raise exception.DevicePortNotFound()
+
+            liport = self.port_get(rdp, gateway['IntDev'])
+            riport = self.port_get(rdp, cgateway['IntDev'])
+
+            input_actions = [
+                    ofp_set(eth_src=gateway['IntDev']),
+                    ofp_set(eth_dst=cgateway['IntDev']),
+                    ofp_set(ipv4_dst=container['UIPAddress'])]
+
+            input_actions.append(input_key)
+            input_actions.append(ofp_out(liport))
+
+            output_match = ofp_parser.OFPMatch(
+                    in_port=liport.port_no,
+                    eth_type=ether.ETH_TYPE_IP,
+                    ip_proto=pkt_ipv4.proto,
+                    ipv4_src=container['UIPAddress'],
+                    ipv4_dst=pkt_ipv4.src,
+                    **output_kwargs)
+
+            remote_input_match = rofp_parser.OFPMatch(
+                    in_port=riport.port_no,
+                    eth_type=ether.ETH_TYPE_IP,
+                    ip_proto=pkt_ipv4.proto,
+                    ipv4_src=pkt_ipv4.src,
+                    ipv4_dst=container['UIPAddress'],
+                    **rinput_kwargs)
+
+            remote_input_actions = [
+                    rofp_set(eth_src=gwport.hw_addr),
+                    rofp_set(eth_dst=container['MacAddress']),
+                    rofp_set(ipv4_dst=container['IPv4Address'])]
+
+            remote_input_actions.append(rofp_out(cport.port_no))
+
+            remote_output_match = rofp_parser.OFPMatch(
+                in_port=cport.port_no,
+                eth_type=ether.ETH_TYPE_IP,
+                ip_proto=pkt_ipv4.proto,
+                ipv4_src=container['IPv4Address'],
+                ipv4_dst=pkt_ipv4.src,
+                **output_kwargs)
+
+            remote_optput_actions = [
+                    rofp_set(eth_src=cgateway['IntDev']),
+                    rofp_set(eth_dst=gateway['IntDev']),
+                    rofp_set(ipv4_src=container['UIPAddress'])]
+
+            input_actions.append(ofp_out(riport.port_no))
+
+            self.add_flow(rdp, remote_output_match, remote_output_actions)
+            self.add_flow(rdp, remote_input_match, remote_input_actions)
+            self.packet_out(msg, dp, remote_input_actions)
+        else:
+            gwport = self.port_get(dp, id=container['NetworkId'])
+            cport = self.port_get(dp, id=container['EndpointID'])
+            if not cport or not gwport:
+                raise exception.DevicePortNotFound()
+
+            input_actions = [
+                    ofp_set(eth_src=gwport.hw_addr),
+                    ofp_set(eth_dst=container['MacAddress']),
+                    ofp_set(ipv4_dst=container['IPv4Address'])]
+
+            input_actions.append(input_key)
+            input_actions.append(ofp_out(cport.port_no))
+
+            output_match = ofp_parser.OFPMatch(
+                    in_port=cport.port_no,
+                    eth_type=ether.ETH_TYPE_IP,
+                    ip_proto=pkt_ipv4.proto,
+                    ipv4_src=container['IPv4Address'],
+                    ipv4_dst=pkt_ipv4.src,
+                    **output_kwargs)
+
+            self.add_flow(dp, output_match, output_actions)
+            self.add_flow(dp, input_match, input_actions)
+            self.packet_out(msg, dp, input_actions)
 
     def firewall(self, msg, dp, in_port, pkt_ether, pkt_ipv4, pkt_tp, gateway):
         ofp, ofp_parser, ofp_set, ofp_out = self.ofp_get(dp)
