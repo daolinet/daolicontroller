@@ -64,6 +64,11 @@ class GroupController(ControllerBase):
     def remove_container(self, _req, id, **kwargs):
         self.app.remove_container(id)
 
+    @route('containers', '/v1/containers/{id}', methods=['GET'])
+    def get_container(self, _req, id, **kwargs):
+        body = self.app.get_container(id)
+        return Response(status=200, body=json.dumps(body))
+
 class OFAgentRyuApp(app_manager.RyuApp):
     OFP_VERSIONS = [ryu_ofp12.OFP_VERSION]
     _CONTEXTS = {'dpset': dpset.DPSet,
@@ -181,3 +186,6 @@ class PacketLib(object):
 
     def remove_container(self, id):
         self.container.remove(id)
+
+    def get_container(self, id):
+        return self.container.get(id, {})
