@@ -16,6 +16,7 @@ LOG = logging.getLogger(__name__)
 INFILTER = [2375]
 OUTFILTER = [4001]
 
+
 class PacketIPv4(PacketBase):
     priority = 1
 
@@ -65,7 +66,7 @@ class PacketIPv4(PacketBase):
                 return True
             elif action == DISCONNECTED:
                 return False
-        except:
+        except Exception:
             return False
 
         if src['NetworkName'] != dst['NetworkName']:
@@ -250,7 +251,6 @@ class PacketIPv4(PacketBase):
             return True
 
         return False
-            
 
     def run(self, msg, pkt_ether, pkt_ipv4, pkt_tp, gateway, **kwargs):
         dp = msg.datapath
