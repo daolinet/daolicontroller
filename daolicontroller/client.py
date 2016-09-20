@@ -1,6 +1,4 @@
 import logging
-import os
-import collections
 
 from docker import client
 from docker import tls
@@ -103,7 +101,8 @@ class DockerHTTPClient(client.Client):
         try:
             res = self._result(self._get(url), True)
             self._parent.gateway[res['DatapathID']] = res
-        except:
+        except Exception as e:
+            LOG.warn(e.message)
             res = None
         return res
 
@@ -124,5 +123,6 @@ class DockerHTTPClient(client.Client):
         url = self._url("/api/firewalls/{0}/{1}".format(node, port))
         try:
             return self._result(self._get(url), True)
-        except:
+        except Exception as e:
+            LOG.warn(e.message)
             return None

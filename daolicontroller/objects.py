@@ -1,10 +1,12 @@
 from netaddr import IPNetwork
 
+
 class Container(dict):
     def new(self, container):
         key = str(IPNetwork(container['IPv4Address']).ip)
         container['IPv4Address'] = key
-        self[key] = container
+        if container.get(key):
+            self[key] = container
         self[container['Id']] = container
         self[container['EndpointID']] = container
         self[container['MacAddress']] = container
@@ -16,6 +18,7 @@ class Container(dict):
             del self[container['EndpointID']]
             del self[container['MacAddress']]
             del self[container['IPv4Address']]
+
 
 class PortState(dict):
     def __init__(self):
@@ -30,9 +33,11 @@ class PortState(dict):
         if self.has_key(port.name):
             del self[port.name]
 
+
 class GatewayState(dict):
     def new(self, gateway):
         self[gateway.datapath_id] = self[gateway.hostname] = gateway
+
 
 class HashPort:
     def __init__(self):

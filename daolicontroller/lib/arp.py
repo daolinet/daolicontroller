@@ -16,6 +16,7 @@ LOG = logging.getLogger(__name__)
 
 BROADCAST = 'ff:ff:ff:ff:ff:ff'
 
+
 class PacketARP(PacketBase):
     priority = 1
 

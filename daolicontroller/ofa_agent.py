@@ -1,6 +1,4 @@
 import logging
-import os
-import struct
 from webob import Response
 
 from eventlet import greenthread
@@ -22,7 +20,6 @@ from ryu.lib.packet import udp
 from ryu.lib.packet import icmp
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import packet
-from ryu.ofproto import inet
 from ryu.ofproto import ofproto_v1_2 as ryu_ofp12
 
 from daolicontroller.client import DockerHTTPClient
@@ -44,6 +41,7 @@ CONF.register_opts([
 ])
 
 LOG = logging.getLogger(__name__)
+
 
 class GroupController(ControllerBase):
     def __init__(self, req, link, data, **config):
@@ -68,6 +66,7 @@ class GroupController(ControllerBase):
     def get_container(self, _req, id, **kwargs):
         body = self.app.get_container(id)
         return Response(status=200, body=json.dumps(body))
+
 
 class OFAgentRyuApp(app_manager.RyuApp):
     OFP_VERSIONS = [ryu_ofp12.OFP_VERSION]
@@ -115,6 +114,7 @@ class OFAgentRyuApp(app_manager.RyuApp):
         except ConnectionError:
             LOG.warn("Connection aborted. Retring again.")
             greenthread.sleep(0)
+
 
 class PacketLib(object):
 
