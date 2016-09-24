@@ -3,13 +3,15 @@ from netaddr import IPNetwork
 
 class Container(dict):
     def new(self, container):
-        key = str(IPNetwork(container['IPv4Address']).ip)
-        container['IPv4Address'] = key
-        if container.get(key):
+        # Dont cache container if not ip address,
+        # so dont support multi-tenant yet in this version.
+        if 'IPv4Address' in container:
+            key = str(IPNetwork(container['IPv4Address']).ip)
+            container['IPv4Address'] = key
             self[key] = container
-        self[container['Id']] = container
-        self[container['EndpointID']] = container
-        self[container['MacAddress']] = container
+            self[container['Id']] = container
+            self[container['EndpointID']] = container
+            self[container['MacAddress']] = container
 
     def remove(self, id):
         container = self.get(id)
