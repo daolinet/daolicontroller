@@ -123,6 +123,5 @@ class DockerHTTPClient(client.Client):
         url = self._url("/api/firewalls/{0}/{1}".format(node, port))
         try:
             return self._result(self._get(url), True)
-        except Exception as e:
-            LOG.warn(e.message)
+        except Exception:
             return None
