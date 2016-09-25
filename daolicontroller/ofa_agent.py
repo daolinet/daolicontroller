@@ -34,7 +34,6 @@ except ImportError:
     import simplejson as json
 
 CONF = cfg.CONF
-
 CONF.register_opts([
     cfg.StrOpt('api_url', default='http://127.0.0.1:3380',
                help='daolinet api url'),
@@ -187,7 +186,10 @@ class PacketLib(object):
         self.ipv4.flow_delete(sid, did)
 
     def remove_container(self, id):
+        container = self.container.get(id)
         self.container.remove(id)
+        if container and container.get('UIPAddress'):
+            self.ipam.deloc(container['UIPAddress'])
 
     def get_container(self, id):
-        return self.container.get(id, {})
+        return self.container.getc(id) or {}

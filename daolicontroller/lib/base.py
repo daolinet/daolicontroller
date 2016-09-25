@@ -79,7 +79,7 @@ class PacketBase(object):
         parser = dp.ofproto_parser
 
         if timeout is None:
-            timeout = CONF.timeout
+            timeout = 10
 
         if match is None:
             match = parser.OFPMatch()
