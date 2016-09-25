@@ -6,8 +6,6 @@ import six
 from oslo_config import cfg
 
 CONF = cfg.CONF
-CONF.register_opt(cfg.IntOpt('timeout', default=10,
-                  help='The flow keep alive'))
 
 LOCAL_PREFIX = "tap"
 
@@ -45,11 +43,11 @@ class PacketBase(object):
     def _redirect(self, dp, inport, outport, **kwargs):
         ofp, ofp_parser, ofp_set, ofp_out = self.ofp_get(dp)
 
+        timeout = kwargs.pop('timeout', 0)
         actions = [ofp_parser.OFPActionOutput(outport)]
         match = ofp_parser.OFPMatch(in_port=inport, **kwargs)
 
-        self.add_flow(dp, match, actions, timeout=0)
-
+        self.add_flow(dp, match, actions, timeout=timeout)
 
     def ofp_get(self, dp):
         ofp = dp.ofproto

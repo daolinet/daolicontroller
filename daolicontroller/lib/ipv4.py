@@ -239,7 +239,10 @@ class PacketIPv4(PacketBase):
             if fw:
                 self._firewall(msg, dp, in_port, pkt_ether, pkt_ipv4, pkt_tp, fw, gateway)
             else:
-                kwargs = {'ipv4_src': pkt_ipv4.src, 'ipv4_dst': pkt_ipv4.dst}
+                kwargs = {
+                    'ipv4_src': pkt_ipv4.src,
+                    'ipv4_dst': pkt_ipv4.dst,
+                    'timeout': CONF.timeout}
                 if pkt_ipv4.proto == inet.IPPROTO_TCP:
                     kwargs['tcp_src'] = pkt_tp.src_port
                     kwargs['tcp_dst'] = pkt_tp.dst_port
@@ -247,7 +250,9 @@ class PacketIPv4(PacketBase):
                     kwargs['udp_src'] = pkt_tp.src_port
                     kwargs['udp_dst'] = pkt_tp.dst_port
 
+                actions = [ofp_parser.OFPActionOutput(outport)]
                 self._redirect(dp, in_port, outport, ip_proto=pkt_ipv4.proto, **kwargs)
+                self.packet_out(msg, dp, actions)
             return True
 
         return False
