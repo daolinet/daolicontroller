@@ -38,6 +38,8 @@ CONF = cfg.CONF
 CONF.register_opts([
     cfg.StrOpt('api_url', default='http://127.0.0.1:3380',
                help='daolinet api url'),
+    cfg.IntOpt('timeout', default=10,
+               help='The flow keep alive'),
 ])
 
 LOG = logging.getLogger(__name__)
