@@ -25,30 +25,20 @@ class PacketARP(PacketBase):
         super(PacketARP, self)._redirect(dp, inport, outport, **kwargs)
 
     def init_flow(self, dp, gateway):
-        if gateway['IntDev'] != gateway['ExtDev']:
-            int_port = self.port_get(dp, gateway['IntDev'])
-            if not int_port:
-                return False
-
-            self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
-                           arp_tpa=gateway['IntIP'])
-            self._redirect(dp, dp.ofproto.OFPP_LOCAL, int_port.port_no,
-                           arp_spa=gateway['IntIP'])
-
-        ext_port = self.port_get(dp, gateway['ExtDev'])
-        if not ext_port:
+        int_port = self.port_get(dp, gateway['IntDev'])
+        if not int_port:
             return False
 
         # broadcast
-        self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
+        self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
                        eth_dst=BROADCAST)
-        self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
-                       eth_dst=ext_port.hw_addr)
+        self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
+                       eth_dst=int_port.hw_addr)
 
-        self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
-                       arp_tpa=gateway['ExtIP'])
-        self._redirect(dp, dp.ofproto.OFPP_LOCAL, ext_port.port_no,
-                       arp_spa=gateway['ExtIP'])
+        self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
+                       arp_tpa=gateway['IntIP'])
+        self._redirect(dp, dp.ofproto.OFPP_LOCAL, int_port.port_no,
+                       arp_spa=gateway['IntIP'])
 
     def arp_response(self, msg, dp, in_port, pkt_ether, pkt_arp, address):
         ofp, ofp_parser, ofp_set, ofp_out = self.ofp_get(dp)
@@ -85,8 +75,8 @@ class PacketARP(PacketBase):
         funcarp = self.arp(msg, dp, in_port, pkt_ether, pkt_arp)
 
         dst_ip = pkt_arp.dst_ip
-        src = self.container.getc(pkt_arp.src_mac)
-        dst = self.container.getc(dst_ip)
+        src = self.get(pkt_arp.src_mac)
+        dst = self.get(dst_ip)
 
         if dst:
             funcarp(dst['MacAddress'])

@@ -25,37 +25,27 @@ class PacketIPv4(PacketBase):
         super(PacketIPv4, self)._redirect(dp, inport, outport, **kwargs)
 
     def init_flow(self, dp, gateway):
-        if gateway['IntDev'] != gateway['ExtDev']:
-            int_port = self.port_get(dp, gateway['IntDev'])
-            if not int_port:
-                return False
-
-            self._redirect(dp, dp.ofproto.OFPP_LOCAL, int_port.port_no,
-                           ipv4_src=gateway['IntIP'])
-            self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
-                           ip_proto=inet.IPPROTO_ICMP, ipv4_dst=gateway['IntIP'])
-
-        ext_port = self.port_get(dp, gateway['ExtDev'])
-        if not ext_port:
+        int_port = self.port_get(dp, gateway['IntDev'])
+        if not int_port:
             return False
 
         # Add flow where is from local host.
-        self._redirect(dp, dp.ofproto.OFPP_LOCAL, ext_port.port_no,
-                       ipv4_src=gateway['ExtIP'])
+        self._redirect(dp, dp.ofproto.OFPP_LOCAL, int_port.port_no,
+                       ipv4_src=gateway['IntIP'])
 
         # Add icmp flow coming from outer.
-        self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
-                       ip_proto=inet.IPPROTO_ICMP, ipv4_dst=gateway['ExtIP'])
+        self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
+                       ip_proto=inet.IPPROTO_ICMP, ipv4_dst=gateway['IntIP'])
 
         # Add initial port flow. eg: docker socket port, etcd port.
         for port in INFILTER:
-            self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
-                           ip_proto=inet.IPPROTO_TCP, ipv4_dst=gateway['ExtIP'],
+            self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
+                           ip_proto=inet.IPPROTO_TCP, ipv4_dst=gateway['IntIP'],
                            tcp_dst=port)
 
         for port in OUTFILTER:
-            self._redirect(dp, ext_port.port_no, dp.ofproto.OFPP_LOCAL,
-                           ip_proto=inet.IPPROTO_TCP, ipv4_dst=gateway['ExtIP'],
+            self._redirect(dp, int_port.port_no, dp.ofproto.OFPP_LOCAL,
+                           ip_proto=inet.IPPROTO_TCP, ipv4_dst=gateway['IntIP'],
                            tcp_src=port)
 
     def filter(self, src, dst):
@@ -79,7 +69,7 @@ class PacketIPv4(PacketBase):
     def _firewall(self, msg, dp, in_port, pkt_ether, pkt_ipv4, pkt_tp, fw, gateway):
         ofp, ofp_parser, ofp_set, ofp_out = self.ofp_get(dp)
 
-        container = self.container.getc(fw['Container'])
+        container = self.get(fw['Container'])
         if not container:
             raise exception.ContainerNotFound(container=fw['Container'])
 
@@ -147,7 +137,7 @@ class PacketIPv4(PacketBase):
             input_actions = [
                     ofp_set(eth_src=gateway['IntDev']),
                     ofp_set(eth_dst=cgateway['IntDev']),
-                    ofp_set(ipv4_dst=container['UIPAddress'])]
+                    ofp_set(ipv4_dst=container['VIPAddress'])]
 
             input_actions.append(input_key)
             input_actions.append(ofp_out(liport))
@@ -156,7 +146,7 @@ class PacketIPv4(PacketBase):
                     in_port=liport.port_no,
                     eth_type=ether.ETH_TYPE_IP,
                     ip_proto=pkt_ipv4.proto,
-                    ipv4_src=container['UIPAddress'],
+                    ipv4_src=container['VIPAddress'],
                     ipv4_dst=pkt_ipv4.src,
                     **output_kwargs)
 
@@ -165,13 +155,13 @@ class PacketIPv4(PacketBase):
                     eth_type=ether.ETH_TYPE_IP,
                     ip_proto=pkt_ipv4.proto,
                     ipv4_src=pkt_ipv4.src,
-                    ipv4_dst=container['UIPAddress'],
+                    ipv4_dst=container['VIPAddress'],
                     **rinput_kwargs)
 
             remote_input_actions = [
                     rofp_set(eth_src=gwport.hw_addr),
                     rofp_set(eth_dst=container['MacAddress']),
-                    rofp_set(ipv4_dst=container['IPv4Address'])]
+                    rofp_set(ipv4_dst=container['IPAddress'])]
 
             remote_input_actions.append(rofp_out(cport.port_no))
 
@@ -179,14 +169,14 @@ class PacketIPv4(PacketBase):
                 in_port=cport.port_no,
                 eth_type=ether.ETH_TYPE_IP,
                 ip_proto=pkt_ipv4.proto,
-                ipv4_src=container['IPv4Address'],
+                ipv4_src=container['IPAddress'],
                 ipv4_dst=pkt_ipv4.src,
                 **output_kwargs)
 
             remote_optput_actions = [
                     rofp_set(eth_src=cgateway['IntDev']),
                     rofp_set(eth_dst=gateway['IntDev']),
-                    rofp_set(ipv4_src=container['UIPAddress'])]
+                    rofp_set(ipv4_src=container['VIPAddress'])]
 
             input_actions.append(ofp_out(riport.port_no))
 
@@ -202,7 +192,7 @@ class PacketIPv4(PacketBase):
             input_actions = [
                     ofp_set(eth_src=gwport.hw_addr),
                     ofp_set(eth_dst=container['MacAddress']),
-                    ofp_set(ipv4_dst=container['IPv4Address'])]
+                    ofp_set(ipv4_dst=container['IPAddress'])]
 
             input_actions.append(input_key)
             input_actions.append(ofp_out(cport.port_no))
@@ -211,7 +201,7 @@ class PacketIPv4(PacketBase):
                     in_port=cport.port_no,
                     eth_type=ether.ETH_TYPE_IP,
                     ip_proto=pkt_ipv4.proto,
-                    ipv4_src=container['IPv4Address'],
+                    ipv4_src=container['IPAddress'],
                     ipv4_dst=pkt_ipv4.src,
                     **output_kwargs)
 
@@ -222,7 +212,7 @@ class PacketIPv4(PacketBase):
     def firewall(self, msg, dp, in_port, pkt_ether, pkt_ipv4, pkt_tp, gateway):
         ofp, ofp_parser, ofp_set, ofp_out = self.ofp_get(dp)
 
-        port = self.port_get(dp, gateway['ExtDev'])
+        port = self.port_get(dp, gateway['IntDev'])
         if not port:
             raise exception.DevicePortNotFound()
 
@@ -269,12 +259,11 @@ class PacketIPv4(PacketBase):
         except Exception:
             return False
 
-        # TODO: multi-tenant
-        src = self.container.getc(pkt_ether.src)
+        src = self.get(pkt_ether.src)
         if not src:
             return False
 
-        dst = self.container.getc(pkt_ipv4.dst)
+        dst = self.get(pkt_ipv4.dst)
         if not dst:
             self.public_flow(msg, dp, pkt_ether, pkt_ipv4, in_port, src)
             return True
@@ -351,8 +340,8 @@ class PacketIPv4(PacketBase):
         output_local_actions = [
                 ofp_set(eth_src=liport.hw_addr),
                 ofp_set(eth_dst=riport.hw_addr),
-                ofp_set(ipv4_src=src['UIPAddress']),
-                ofp_set(ipv4_dst=dst['UIPAddress']),
+                ofp_set(ipv4_src=src['VIPAddress']),
+                ofp_set(ipv4_dst=dst['VIPAddress']),
                 ofp_out(liport.port_no),
         ]
 
@@ -362,8 +351,8 @@ class PacketIPv4(PacketBase):
                 eth_dst=riport.hw_addr,
                 #ipv4_src=pkt_ipv4.src,
                 #ipv4_dst=pkt_ipv4.dst)
-                ipv4_src=src['UIPAddress'],
-                ipv4_dst=dst['UIPAddress'])
+                ipv4_src=src['VIPAddress'],
+                ipv4_dst=dst['VIPAddress'])
 
         if pkt_ether.dst == dst['MacAddress']:
             dst_srcmac = pkt_ether.src
@@ -388,8 +377,8 @@ class PacketIPv4(PacketBase):
         output_remote_actions = [
                 rofp_set(eth_src=riport.hw_addr),
                 rofp_set(eth_dst=liport.hw_addr),
-                rofp_set(ipv4_src=dst['UIPAddress']),
-                rofp_set(ipv4_dst=src['UIPAddress']),
+                rofp_set(ipv4_src=dst['VIPAddress']),
+                rofp_set(ipv4_dst=src['VIPAddress']),
                 ofp_out(riport.port_no),
         ]
 
@@ -399,8 +388,8 @@ class PacketIPv4(PacketBase):
                 eth_dst=liport.hw_addr,
                 #ipv4_src=pkt_ipv4.dst,
                 #ipv4_dst=pkt_ipv4.src)
-                ipv4_src=dst['UIPAddress'],
-                ipv4_dst=src['UIPAddress'])
+                ipv4_src=dst['VIPAddress'],
+                ipv4_dst=src['VIPAddress'])
 
         input_local_actions = [
                 ofp_set(eth_src=pkt_ether.dst),
@@ -448,8 +437,8 @@ class PacketIPv4(PacketBase):
         self.packet_out(msg, dp, output_actions)
 
     def flow_delete(self, sid, did):
-        src = self.container.getc(sid)
-        dst = self.container.getc(did)
+        src = self.get(sid)
+        dst = self.get(did)
         if not src or not dst:
             return 
 
@@ -465,8 +454,8 @@ class PacketIPv4(PacketBase):
                 match = ofp_parser.OFPMatch(
                         in_port=port.port_no,
                         eth_type=ether.ETH_TYPE_IP,
-                        ipv4_src=src['IPv4Address'],
-                        ipv4_dst=dst['IPv4Address'])
+                        ipv4_src=src['IPAddress'],
+                        ipv4_dst=dst['IPAddress'])
 
                 self.delete_flow(dp, match)
 
@@ -479,7 +468,7 @@ class PacketIPv4(PacketBase):
                 match = ofp_parser.OFPMatch(
                         in_port=port.port_no,
                         eth_type=ether.ETH_TYPE_IP,
-                        ipv4_src=dst['IPv4Address'],
-                        ipv4_dst=src['IPv4Address'])
+                        ipv4_src=dst['IPAddress'],
+                        ipv4_dst=src['IPAddress'])
 
                 self.delete_flow(dp, match)

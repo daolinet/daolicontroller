@@ -17,10 +17,9 @@ class PacketBase(object):
         self.manager = manager
         self.client = manager.client
         self.container = manager.container
-        self.container.getc = self.getc
         self.ryuapp = ryuapp
 
-    def getc(self, key):
+    def get(self, key):
         if not self.container.get(key):
             self.client.containers()
         return self.container.get(key)

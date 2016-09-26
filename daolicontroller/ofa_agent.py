@@ -27,6 +27,7 @@ from daolicontroller.ipam import IPAM
 from daolicontroller.lib import PacketARP, PacketIPv4
 from daolicontroller.objects import PortState
 from daolicontroller.objects import Container
+from daolicontroller.objects import Gateway
 
 try:
     import json
@@ -121,7 +122,7 @@ class PacketLib(object):
 
     def __init__(self, ryuapp):
         super(PacketLib, self).__init__()
-        self.gateway = {}
+        self.gateway = Gateway()
         self.ipam = IPAM()
         self.container = Container()
         self.client = DockerHTTPClient(self, CONF.api_url)
@@ -192,4 +193,4 @@ class PacketLib(object):
             self.ipam.deloc(container['UIPAddress'])
 
     def get_container(self, id):
-        return self.container.getc(id) or {}
+        return self.container.get(id) or {}
