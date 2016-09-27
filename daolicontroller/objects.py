@@ -5,21 +5,15 @@ class Container(dict):
     def new(self, container):
         # Dont cache container if not ip address,
         # so dont support multi-tenant yet in this version.
-        if 'IPv4Address' in container:
-            key = str(IPNetwork(container['IPv4Address']).ip)
-            container['IPv4Address'] = key
-            self[key] = container
-            self[container['Id']] = container
-            self[container['EndpointID']] = container
-            self[container['MacAddress']] = container
+        if container['MacAddress'] and container['IPAddress']:
+            for key in ('Id', 'EndpointID', 'MacAddress', 'IPAddress'):
+                self[container[key]] = container
 
     def remove(self, id):
         container = self.get(id)
         if container:
-            del self[container['Id']]
-            del self[container['EndpointID']]
-            del self[container['MacAddress']]
-            del self[container['IPv4Address']]
+            for key in ('Id', 'EndpointID', 'MacAddress', 'IPAddress'):
+                del self[container[key]]
 
 
 class PortState(dict):
@@ -36,9 +30,10 @@ class PortState(dict):
             del self[port.name]
 
 
-class GatewayState(dict):
+class Gateway(dict):
     def new(self, gateway):
-        self[gateway.datapath_id] = self[gateway.hostname] = gateway
+        self[gateway['Node']] = gateway
+        self[gateway['DatapathID']] = gateway
 
 
 class HashPort:

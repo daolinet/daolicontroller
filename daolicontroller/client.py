@@ -22,7 +22,7 @@ docker_opts = [
 CONF = cfg.CONF
 CONF.register_opts(docker_opts, 'docker')
 
-DOCKER_PLUGIN = 'daolinet'
+EXCLUDE = ['none', 'bridge', 'host']
 DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_DOCKER_API_VERSION = '1.19'
 
@@ -54,53 +54,48 @@ class DockerHTTPClient(client.Client):
         )
 
     def containers(self):
-        res = self._result(self._get(self._url("/networks")), True)
+        res = self._result(self._get(self._url("/containers/json")), True)
         for r in res:
-            if r['Driver'] != DOCKER_PLUGIN:
-                continue
-            for k, v in r['Containers'].iteritems():
-                # Docker swarm returns Key started with 'ep-', so we skip it
-                if not k.startswith('ep-'):
-                    v['Id'], v['NetworkId'], v['NetworkName'] = k, r['Id'], r['Name']
-                    self._parent.container.new(v)
-                    self.node(k)
-        return res
+            if r['Id'] not in self._parent.container:
+                if r['HostConfig']['NetworkMode'] not in EXCLUDE:
+                    self.container(r['Id'])
 
-    def node(self, container):
-        obj = self._parent.container[container]
-        if not obj.has_key('UIPAddress'):
-            try:
-                obj['UIPAddress'] = self._parent.ipam.alloc()
-            except Exception as e:
-                LOG.warn(e.message)
+    def container(self, cid):
+        try:
+            info = self.inspect_container(cid)
+        except Exception as e:
+            LOG.warn(e.message)
+            return
 
-        if not obj.has_key('Node'):
-            try:
-                info = self.inspect_container(container)
-                obj['Node'] = info['Node']['IP']
-            except Exception as e:
-                LOG.warn(e.message)
-                return None
-
-        if not obj.has_key('DataPath'):
-            for dpid, item in self._parent.gateway.iteritems():
-                if item['Node'] == obj['Node']:
-                    obj['DataPath'] = dpid
-                    break
-
-        return obj['Node']
+        nodeIP = info.get('Node', {}).get('IP')
+        networkName = info['HostConfig']['NetworkMode']
+        net = info['NetworkSettings']['Networks'].get(networkName)
+        if nodeIP and net:
+            gateway = self._parent.gateway.get(nodeIP, {})
+            c = {
+                'Id': info['Id'],
+                'Node': nodeIP,
+                'NetworkName': networkName,
+                'NetworkId': net['NetworkID'],
+                'EndpointID': net['EndpointID'],
+                'IPAddress': net['IPAddress'],
+                'MacAddress': net['MacAddress'],
+                'DataPath': gateway.get('DatapathID'),
+                'VIPAddress': self._parent.ipam.alloc(),
+            }
+            return self._parent.container.new(c)
 
     def gateways(self):
         res = self._result(self._get(self._url("/api/gateways")), True)
         for r in res:
-            self._parent.gateway[r['DatapathID']] = r
+            self._parent.gateway.new(r)
         return res
 
     def gateway(self, dpid):
         url = self._url("/api/gateways/%s" % dpid)
         try:
             res = self._result(self._get(url), True)
-            self._parent.gateway[res['DatapathID']] = res
+            self._parent.gateway.new(res)
         except Exception as e:
             LOG.warn(e.message)
             res = None
