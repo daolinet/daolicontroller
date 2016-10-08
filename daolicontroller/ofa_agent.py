@@ -189,8 +189,9 @@ class PacketLib(object):
     def remove_container(self, id):
         container = self.container.get(id)
         self.container.remove(id)
-        if container and container.get('UIPAddress'):
-            self.ipam.deloc(container['UIPAddress'])
+        if container and container.get('VIPAddress'):
+            self.ipam.deloc(container['VIPAddress'])
+            self.ipv4.remove_flow(container)
 
     def get_container(self, id):
         return self.container.get(id) or {}
