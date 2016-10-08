@@ -472,3 +472,29 @@ class PacketIPv4(PacketBase):
                         ipv4_dst=src['IPAddress'])
 
                 self.delete_flow(dp, match)
+
+    def remove_flow(self, container):
+        dp_id = dpid_lib.str_to_dpid(container['DataPath'])
+        if dp_id in self.ryuapp.dps:
+            dp = self.ryuapp.dps[dp_id]
+            ofp, ofp_parser, _, _ = self.ofp_get(dp)
+            match = ofp_parser.OFPMatch(
+                    eth_type=ether.ETH_TYPE_IP,
+                    ipv4_src=container['IPAddress'])
+            self.delete_flow(dp, match)
+
+            match = ofp_parser.OFPMatch(
+                    eth_type=ether.ETH_TYPE_IP,
+                    ipv4_dst=container['IPAddress'])
+            self.delete_flow(dp, match)
+
+            match = ofp_parser.OFPMatch(
+                    eth_type=ether.ETH_TYPE_IP,
+                    ipv4_src=container['VIPAddress'])
+            self.delete_flow(dp, match)
+
+            match = ofp_parser.OFPMatch(
+                    eth_type=ether.ETH_TYPE_IP,
+                    ipv4_dst=container['VIPAddress'])
+            self.delete_flow(dp, match)
+
